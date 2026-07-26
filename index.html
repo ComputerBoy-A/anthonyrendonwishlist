@@ -418,21 +418,28 @@
       }
 
       // Mark an item as bought in Firestore
-      async function handlePurchase(docId, itemName) {
-        const confirmPurchase = confirm(`Are you sure you want to mark "${itemName}" as bought?`);
-        if (!confirmPurchase) return;
-
+      async function handlePurchase(docId) {
         try {
-          await db.collection("wishlist").doc(docId).update({
+          const docRef = db.collection("wishlist").doc(docId);
+          const doc = await docRef.get();
+          if (!doc.exists) return;
+
+          const itemData = doc.data();
+          const itemName = itemData.name || "this item";
+
+          const confirmPurchase = confirm(`Are you sure you want to mark "${itemName}" as bought?`);
+          if (!confirmPurchase) return;
+
+          await docRef.update({
             isBought: true
           });
 
-          // Triggers the dog reaction image for specific items (e.g. Lamborghini)
+          // Triggers side-eye dog pop-up strictly when Lamborghini is bought
           if (itemName.toLowerCase().includes("lamborghini")) {
             triggerPopup(
-              "https://github.com/ComputerBoy-A/anthonyrendonwishlist/blob/main/IMG_0304.jpeg", // Replace with your uploaded dog image link
+              "IMG_0304.jpeg",
               "😳",
-              'yo thank you for buying a ${itemName}?!`
+              `yo thank you for buying a ${itemName}?!`
             );
           }
         } catch (error) {
@@ -468,7 +475,7 @@
                 ${
                   item.isBought
                     ? '<span class="bought-badge">✓ Bought</span>'
-                    : `<button class="buy-btn" onclick="handlePurchase('${docId}', '${item.name.replace(/'/g, "\\'")}')">Mark as Bought</button>`
+                    : `<button class="buy-btn" onclick="handlePurchase('${docId}')">Mark as Bought</button>`
                 }
               </div>
             `;
