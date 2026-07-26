@@ -269,3 +269,217 @@
 
       .popup-card p {
         color: var(--muted);
+        margin-bottom: 16px;
+        font-size: 0.95rem;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+        }
+
+        .app-shell {
+          gap: 14px;
+        }
+
+        .hero,
+        .panel {
+          border-radius: 20px;
+          padding: 18px;
+        }
+
+        .hero {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 16px;
+        }
+
+        .hero-image-wrap {
+          width: 100%;
+          display: flex;
+          justify-content: flex-start;
+        }
+
+        .hero-image {
+          width: 80px;
+          height: 80px;
+          border-radius: 14px;
+        }
+
+        .hero-card {
+          width: 100%;
+          padding: 14px 16px;
+        }
+
+        .wishlist-item {
+          grid-template-columns: 70px 1fr;
+          gap: 12px;
+        }
+
+        .wishlist-image {
+          width: 70px;
+          height: 70px;
+        }
+
+        .buy-action {
+          grid-column: span 2;
+          width: 100%;
+        }
+
+        .buy-btn {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <h1>Anthony Rendon's Wishlist</h1>
+          <p class="subtitle">plz let me get this.</p>
+        </div>
+
+        <div class="hero-image-wrap">
+          <img
+            class="hero-image"
+            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPjva3qIcG4yseaWFivJCVPAQECPpb_Jh5eaaJ0kNzR9VeEU_d1qf7lQU&s=10"
+            alt="Wishlist image"
+          />
+        </div>
+
+        <div class="hero-card">
+          <span class="hero-label">Birthday Countdown</span>
+          <p id="countdown"></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Items</h2>
+        </div>
+
+        <ul id="wishlistItems" class="wishlist-list"></ul>
+      </section>
+    </main>
+
+    <div id="popupOverlay" class="popup-overlay" style="display: none;">
+      <div class="popup-card">
+        <img id="popupImage" src="" alt="Reaction" class="popup-img" />
+        <h3 id="popupTitle">Wait, really?!</h3>
+        <p id="popupMessage">Thank you so much!</p>
+        <button class="buy-btn" onclick="closePopup()">Awesome!</button>
+      </div>
+    </div>
+
+    <script>
+      // Firebase Config
+      const firebaseConfig = {
+        apiKey: "AIzaSyBFCmFYwg-GGyOtxbFOXRfbTgwmsgcCL6E",
+        authDomain: "anthony-wishlist.firebaseapp.com",
+        projectId: "anthony-wishlist",
+        storageBucket: "anthony-wishlist.firebasestorage.app",
+        messagingSenderId: "132375706695",
+        appId: "1:132375706695:web:dec43dfcc144fcaa504562"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      const list = document.getElementById("wishlistItems");
+      const countdownEl = document.getElementById("countdown");
+
+      function updateCountdown() {
+        const now = new Date();
+        let birthday = new Date(now.getFullYear(), 7, 10);
+
+        if (now > birthday) {
+          birthday = new Date(now.getFullYear() + 1, 7, 10);
+        }
+
+        const diff = birthday - now;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((diff / (1000 * 60)) % 60);
+        const seconds = Math.floor((diff / 1000) % 60);
+
+        countdownEl.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+      }
+
+      function triggerPopup(imageUrl, title, message) {
+        document.getElementById("popupImage").src = imageUrl;
+        document.getElementById("popupTitle").textContent = title;
+        document.getElementById("popupMessage").textContent = message;
+        document.getElementById("popupOverlay").style.display = "flex";
+      }
+
+      function closePopup() {
+        document.getElementById("popupOverlay").style.display = "none";
+      }
+
+      // Mark an item as bought in Firestore
+      async function handlePurchase(docId, itemName) {
+        const confirmPurchase = confirm(`Are you sure you want to mark "${itemName}" as bought?`);
+        if (!confirmPurchase) return;
+
+        try {
+          await db.collection("wishlist").doc(docId).update({
+            isBought: true
+          });
+
+          // Triggers the dog reaction image for specific items (e.g. Lamborghini)
+          if (itemName.toLowerCase().includes("lamborghini")) {
+            triggerPopup(
+              "YOUR_IMAGE_URL_HERE", // Replace with your uploaded dog image link
+              "SIDE EYE ACTIVATED 😳",
+              `Did someone actually just buy the ${itemName}?!`
+            );
+          }
+        } catch (error) {
+          console.error("Error updating item status:", error);
+          alert("Something went wrong. Please try again.");
+        }
+      }
+
+      // Real-time listener for database changes
+      function listenToWishlist() {
+        db.collection("wishlist").onSnapshot((snapshot) => {
+          list.innerHTML = "";
+
+          if (snapshot.empty) {
+            list.innerHTML = '<li class="empty-state">No wishlist items found.</li>';
+            return;
+          }
+
+          snapshot.forEach((doc) => {
+            const item = doc.data();
+            const docId = doc.id;
+
+            const li = document.createElement("li");
+            li.className = `wishlist-item ${item.isBought ? "is-bought" : ""}`;
+
+            li.innerHTML = `
+              <img class="wishlist-image" src="${item.image || ''}" alt="${item.name}" />
+              <div class="wishlist-meta">
+                <a class="wishlist-name" href="${item.link}" target="_blank" rel="noopener noreferrer">${item.name}</a>
+                <span class="wishlist-caption">${item.isBought ? "Purchased" : "Click title for link"}</span>
+              </div>
+              <div class="buy-action">
+                ${
+                  item.isBought
+                    ? '<span class="bought-badge">✓ Bought</span>'
+                    : `<button class="buy-btn" onclick="handlePurchase('${docId}', '${item.name.replace(/'/g, "\\'")}')">Mark as Bought</button>`
+                }
+              </div>
+            `;
+            list.appendChild(li);
+          });
+        });
+      }
+
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+      listenToWishlist();
+    </script>
+  </body>
+</html>
