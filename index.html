@@ -3,8 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-      <link rel="icon" type="image/x-icon" href="/favicon.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.png">
     <title>Anthony Rendon's Personal Wishlist</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <style>
       :root {
         --bg: #0b1020;
@@ -13,6 +17,8 @@
         --text: #e5eefc;
         --muted: #9fb0d0;
         --accent: #8b5cf6;
+        --accent-hover: #7c3aed;
+        --bought: #ef4444;
         --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
       }
 
@@ -20,7 +26,6 @@
         box-sizing: border-box;
       }
 
-      /* Edge-to-edge background with iOS safe area padding */
       body {
         margin: 0;
         min-height: 100vh;
@@ -41,7 +46,6 @@
         gap: 20px;
       }
 
-      /* Base Panel Styles */
       .hero,
       .panel {
         backdrop-filter: blur(18px);
@@ -52,7 +56,6 @@
         box-shadow: var(--shadow);
       }
 
-      /* Desktop Hero Layout */
       .hero {
         display: flex;
         justify-content: space-between;
@@ -130,7 +133,6 @@
         margin-top: 4px;
       }
 
-      /* Wishlist Grid */
       .wishlist-list {
         list-style: none;
         padding: 0;
@@ -139,13 +141,11 @@
         gap: 14px;
       }
 
-      .wishlist-link {
+      .wishlist-item {
         display: grid;
-        grid-template-columns: 100px 1fr;
+        grid-template-columns: 100px 1fr auto;
         gap: 16px;
         align-items: center;
-        text-decoration: none;
-        color: var(--text);
         padding: 12px;
         border-radius: 18px;
         background: rgba(255, 255, 255, 0.04);
@@ -153,9 +153,13 @@
         transition: transform 0.18s ease, border-color 0.18s ease;
       }
 
-      .wishlist-link:hover {
+      .wishlist-item:hover {
         transform: translateY(-2px);
         border-color: rgba(139, 92, 246, 0.5);
+      }
+
+      .wishlist-item.is-bought {
+        opacity: 0.6;
       }
 
       .wishlist-image {
@@ -174,11 +178,45 @@
       .wishlist-name {
         font-size: 1.05rem;
         font-weight: 700;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .wishlist-name:hover {
+        text-decoration: underline;
+      }
+
+      .wishlist-item.is-bought .wishlist-name {
+        text-decoration: line-through;
       }
 
       .wishlist-caption {
         color: var(--muted);
         font-size: 0.9rem;
+      }
+
+      .bought-badge {
+        color: var(--bought);
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .buy-btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.1s ease;
+      }
+
+      .buy-btn:hover {
+        background: var(--accent-hover);
+        transform: scale(1.02);
       }
 
       .empty-state {
@@ -189,7 +227,6 @@
         border-radius: 18px;
       }
 
-      /* Mobile Optimizations */
       @media (max-width: 700px) {
         body {
           padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
@@ -228,14 +265,23 @@
           padding: 14px 16px;
         }
 
-        .wishlist-link {
-          grid-template-columns: 80px 1fr;
+        .wishlist-item {
+          grid-template-columns: 70px 1fr;
           gap: 12px;
         }
 
         .wishlist-image {
-          width: 80px;
-          height: 80px;
+          width: 70px;
+          height: 70px;
+        }
+
+        .buy-action {
+          grid-column: span 2;
+          width: 100%;
+        }
+
+        .buy-btn {
+          width: 100%;
         }
       }
     </style>
@@ -272,21 +318,21 @@
     </main>
 
     <script>
+      // Firebase Config
+      const firebaseConfig = {
+        apiKey: "AIzaSyBFCmFYwg-GGyOtxbFOXRfbTgwmsgcCL6E",
+        authDomain: "anthony-wishlist.firebaseapp.com",
+        projectId: "anthony-wishlist",
+        storageBucket: "anthony-wishlist.firebasestorage.app",
+        messagingSenderId: "132375706695",
+        appId: "1:132375706695:web:dec43dfcc144fcaa504562"
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
       const list = document.getElementById("wishlistItems");
       const countdownEl = document.getElementById("countdown");
-
-      let items = [
-        {
-          name: "Apple Airpods 4 with Active Noise Cancellation",
-          image: "https://encrypted-tbn3.gstatic.com/shopping?q=tbn:ANd9GcStQniTwqiEs-M-0b0WpdrbrGSrnUCKpeU3qLQ_UKwoKVo7TJlBp_w0ottyP-AO7jv7ctr_BcHs7qdUHz7LdRR2M8jq_aNNUWKNs1Vt0EgRGLaoHBDQbvdCUGBLraEP6q0NigRe3M3sTdw&usqp=CAc",
-          link: "https://www.bestbuy.com/product/apple-airpods-4-with-active-noise-cancellation-white/JJGCQ832YX/sku/6447385"
-        },
-        {
-          name: "Lamborghini Revuelto",
-          image: "https://news.dupontregistry.com/cdn/shop/articles/Lamborghini_Revuelto_by_MANSORY_23.jpg?v=1767076544",
-          link: "https://www.lamborghini.com/en-en/models/revuelto"
-        },
-            ];
 
       function updateCountdown() {
         const now = new Date();
@@ -305,33 +351,60 @@
         countdownEl.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
       }
 
-      function renderWishlist() {
-        list.innerHTML = "";
+      // Mark an item as bought in Firestore
+      async function handlePurchase(docId, itemName) {
+        const confirmPurchase = confirm(`Are you sure you want to mark "${itemName}" as bought?`);
+        if (!confirmPurchase) return;
 
-        if (items.length === 0) {
-          list.innerHTML = '<li class="empty-state">No wishlist items yet. Add them directly in the code.</li>';
-          return;
+        try {
+          await db.collection("wishlist").doc(docId).update({
+            isBought: true
+          });
+        } catch (error) {
+          console.error("Error updating item status:", error);
+          alert("Something went wrong. Please try again.");
         }
+      }
 
-        items.forEach((item) => {
-          const li = document.createElement("li");
-          li.className = "wishlist-item";
-          li.innerHTML = `
-            <a class="wishlist-link" href="${item.link}" target="_blank" rel="noopener noreferrer">
-              <img class="wishlist-image" src="${item.image}" alt="${item.name}" />
+      // Real-time listener for database changes
+      function listenToWishlist() {
+        db.collection("wishlist").onSnapshot((snapshot) => {
+          list.innerHTML = "";
+
+          if (snapshot.empty) {
+            list.innerHTML = '<li class="empty-state">No wishlist items found.</li>';
+            return;
+          }
+
+          snapshot.forEach((doc) => {
+            const item = doc.data();
+            const docId = doc.id;
+
+            const li = document.createElement("li");
+            li.className = `wishlist-item ${item.isBought ? "is-bought" : ""}`;
+
+            li.innerHTML = `
+              <img class="wishlist-image" src="${item.image || ''}" alt="${item.name}" />
               <div class="wishlist-meta">
-                <span class="wishlist-name">${item.name}</span>
-                <span class="wishlist-caption">Click for link</span>
+                <a class="wishlist-name" href="${item.link}" target="_blank" rel="noopener noreferrer">${item.name}</a>
+                <span class="wishlist-caption">${item.isBought ? "Purchased" : "Click title for link"}</span>
               </div>
-            </a>
-          `;
-          list.appendChild(li);
+              <div class="buy-action">
+                ${
+                  item.isBought
+                    ? '<span class="bought-badge">✓ Bought</span>'
+                    : `<button class="buy-btn" onclick="handlePurchase('${docId}', '${item.name.replace(/'/g, "\\'")}')">Mark as Bought</button>`
+                }
+              </div>
+            `;
+            list.appendChild(li);
+          });
         });
       }
 
       updateCountdown();
       setInterval(updateCountdown, 1000);
-      renderWishlist();
+      listenToWishlist();
     </script>
   </body>
 </html>
